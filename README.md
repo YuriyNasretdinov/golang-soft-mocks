@@ -1,0 +1,1 @@
+== Soft Mocks for Go!
