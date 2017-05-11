@@ -7,7 +7,7 @@ import (
 )
 
 var mocksMutex sync.Mutex
-var mocks = make(map[FuncPtr]interface{})
+var mocks = make(map[funcPtr]interface{})
 
 func Mock(src interface{}, dst interface{}) {
 	fHash := GetFuncPtr(src)

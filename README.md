@@ -13,8 +13,6 @@ $ go run cmd/soft/main.go # first time function (*os.File).Close cannot be mocke
 panic: Function cannot be mocked, it is not registered
 ...
 $ go run cmd/soft/main.go # second time the rewritten file is used
-Registering func  17429088
-...
 File is going to be closed: /dev/null
 Hello, world: %v! <nil>
 $ mv /usr/local/go/src/os/file_unix.go{.bak,} # restore everything

@@ -93,6 +93,7 @@ func funcDeclFlagName(fset *token.FileSet, d *ast.FuncDecl) string {
 }
 
 // checks if we have situation like "func (file *file) close() error" in "os" package
+// TODO: we can actually rename arguments when this happens so there is no ambiguity
 func typesClashWithArgNames(decls []*ast.Field) bool {
 	namesMap := make(map[string]bool)
 	for _, d := range decls {
@@ -272,8 +273,8 @@ func transformAst(fset *token.FileSet, f *ast.File) {
 		case *ast.FuncDecl:
 			if d.Name.Name == "init" && d.Recv == nil {
 				initFunc = d
-			} else {
-				flags[d] = funcDeclFlagName(fset, d)
+			} else if flName := funcDeclFlagName(fset, d); flName != "" {
+				flags[d] = flName
 			}
 		}
 	}

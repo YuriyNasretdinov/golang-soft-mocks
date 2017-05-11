@@ -1,18 +1,16 @@
 package soft
 
 type (
-	FuncPtr uintptr
-	FlagPtr *int32 // flag pointer indicates that there exists a mock and is atomically read and written
+	funcPtr uintptr
+	flagPtr *int32 // flag pointer indicates that there exists a mock and is atomically read and written
 )
 
-var pkgFlags = make(map[FuncPtr]FlagPtr)
-var pkgFuncs = make(map[FuncPtr]interface{})
+var pkgFlags = make(map[funcPtr]flagPtr)
+var pkgFuncs = make(map[funcPtr]interface{})
 
 // callback that is used in rewritten files
-func RegisterFunc(fun interface{}, flagPtr *int32) {
-	ptr := GetFuncPtr(fun)
-	println("Registering func ", ptr)
-
-	pkgFlags[ptr] = FlagPtr(flagPtr)
-	pkgFuncs[ptr] = fun
+func RegisterFunc(fun interface{}, p *int32) {
+	f := GetFuncPtr(fun)
+	pkgFlags[f] = flagPtr(p)
+	pkgFuncs[f] = fun
 }
