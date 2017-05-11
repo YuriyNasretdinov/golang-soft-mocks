@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"soft"
+
+	"github.com/YuriyNasretdinov/golang-soft-mocks"
 )
 
 func main() {

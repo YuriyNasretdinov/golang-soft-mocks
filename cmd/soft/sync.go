@@ -57,7 +57,12 @@ func sync(fi os.FileInfo, dirFrom, dirTo string) {
 	newContents, err := rewriteFile(from)
 	if err != nil {
 		log.Printf("Could not rewrite file %s: %s", from, err.Error())
-		return
+		os.Stderr.Write([]byte("\n"))
+		newContents, err = ioutil.ReadFile(from)
+		if err != nil {
+			log.Printf("Could not read %s: %s", from, err.Error())
+			return
+		}
 	}
 
 	err = ioutil.WriteFile(to, newContents, fi.Mode().Perm())
@@ -73,7 +78,20 @@ func sync(fi os.FileInfo, dirFrom, dirTo string) {
 	}
 }
 
+// TODO: maybe make configurable?
+var ignoreDirs = map[string]bool{
+	".git":        true,
+	".hg":         true,
+	".unrealsync": true,
+}
+
 func syncDir(dirFrom, dirTo string) {
+	os.Stderr.WriteString("\033[A\033[2K" + dirFrom + "\n")
+
+	if ignoreDirs[filepath.Base(dirFrom)] {
+		return
+	}
+
 	if _, err := os.Lstat(dirTo); err != nil {
 		if os.IsNotExist(err) {
 			if err := os.MkdirAll(dirTo, 0777); err != nil {

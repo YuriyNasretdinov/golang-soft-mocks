@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"syscall"
@@ -25,14 +26,28 @@ func main() {
 		log.Fatal("GOROOT must be set")
 	}
 
-	syncDir(gopath, softGopath)
-	syncDir(goroot, softGoroot)
+	log.Printf("Starting to rewrite %s", goroot)
+	os.Stderr.Write([]byte("\n"))
 
+	syncDir(filepath.Join(goroot, "src"), filepath.Join(softGoroot, "src"))
 	// go root does not allow external imports, so we have to pretend that "soft" is actually golang package
-	syncDir(filepath.Join(gopath, "github.com", "YuriyNasretdinov", "golang-soft-mocks"), filepath.Join(softGoroot, "soft"))
+	syncDir(filepath.Join(gopath, "src", "github.com", "YuriyNasretdinov", "golang-soft-mocks"), filepath.Join(softGoroot, "src", "soft"))
+
+	log.Printf("Starting to rewrite %s", gopath)
+	os.Stderr.Write([]byte("\n"))
+
+	syncDir(filepath.Join(gopath, "src", "github.com", "YuriyNasretdinov"), filepath.Join(softGopath, "src", "github.com", "YuriyNasretdinov"))
 
 	os.Setenv("GOPATH", softGopath)
 	os.Setenv("GOROOT", softGoroot)
 
-	syscall.Exec(os.Args[1], os.Args[2:], os.Environ())
+	ex, err := exec.LookPath(os.Args[1])
+	if err != nil {
+		log.Fatalf("Could not find executable for %s: %s", os.Args[1], err.Error())
+	}
+
+	os.Stderr.Write([]byte("\n"))
+	log.Printf("Running %s %v", ex, os.Args[1:])
+
+	syscall.Exec(ex, os.Args[1:], os.Environ())
 }

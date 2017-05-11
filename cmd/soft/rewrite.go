@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/md5"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -157,11 +158,17 @@ func funcDeclExpr(f *ast.FuncDecl) ast.Expr {
 	}
 }
 
-func argNamesFromFuncDecl(f *ast.FuncDecl) []ast.Expr {
+var ErrNoNames = errors.New("No names in receiver")
+
+func argNamesFromFuncDecl(f *ast.FuncDecl) ([]ast.Expr, error) {
 	var res []ast.Expr
 
 	if f.Recv != nil {
-		res = append(res, f.Recv.List[0].Names[0])
+		names := f.Recv.List[0].Names
+		if len(names) == 0 {
+			return nil, ErrNoNames
+		}
+		res = append(res, names[0])
 	}
 
 	for _, t := range f.Type.Params.List {
@@ -170,7 +177,7 @@ func argNamesFromFuncDecl(f *ast.FuncDecl) []ast.Expr {
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 func funcDeclType(f *ast.FuncDecl) ast.Expr {
@@ -234,6 +241,11 @@ func getInterceptorsExpression(decl *ast.FuncDecl) ast.Expr {
 		return nil
 	}
 
+	args, err := argNamesFromFuncDecl(decl)
+	if err != nil {
+		return nil
+	}
+
 	return &ast.CallExpr{
 		Fun: &ast.TypeAssertExpr{
 			X: &ast.CallExpr{
@@ -245,7 +257,7 @@ func getInterceptorsExpression(decl *ast.FuncDecl) ast.Expr {
 			},
 			Type: funcType,
 		},
-		Args: argNamesFromFuncDecl(decl),
+		Args: args,
 	}
 }
 
@@ -321,7 +333,7 @@ func transformAst(fset *token.FileSet, f *ast.File) {
 }
 
 func isPackage(pkg, filename string) bool {
-	return strings.HasPrefix(filename, filepath.Join(gopath, filepath.FromSlash(pkg))+string(os.PathSeparator))
+	return strings.HasPrefix(filename, filepath.Join(goroot, "src", filepath.FromSlash(pkg))+string(os.PathSeparator))
 }
 
 // These packages are used by soft mocks themselves so otherwise we would get cyclic imports
@@ -330,22 +342,39 @@ var excludedPackages = []string{
 	"sync",
 	"reflect",
 	"soft",
+	"runtime",
+	"math",
+	"unsafe",
+	"strconv",
+	"internal",
 }
 
-func rewriteFile(filename string) ([]byte, error) {
+func rewriteFile(filename string) (contents []byte, err error) {
+	if !strings.HasSuffix(filename, ".go") {
+		return ioutil.ReadFile(filename)
+	}
+
 	for _, pkg := range excludedPackages {
 		if isPackage(pkg, filename) {
 			return ioutil.ReadFile(filename)
 		}
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+
 	fset := token.NewFileSet() // positions are relative to fset
-	f, err := parser.ParseFile(fset, filename, nil, 0)
+	f, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
 
+	cmap := ast.NewCommentMap(fset, f, f.Comments)
 	transformAst(fset, f)
+	f.Comments = cmap.Filter(f).Comments()
 
 	var b bytes.Buffer
 	if err := printerCfg.Fprint(&b, fset, f); err != nil {
