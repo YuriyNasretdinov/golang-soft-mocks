@@ -10,6 +10,8 @@ import (
 	"go/token"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 var printerCfg = &printer.Config{
@@ -43,6 +45,17 @@ func createBackupFile(filename string) error {
 	return nil
 }
 
+func appendImports(specs, newSpecs []ast.Spec, alreadyImported map[string]bool) []ast.Spec {
+	for _, sp := range newSpecs {
+		if alreadyImported[sp.(*ast.ImportSpec).Path.Value] {
+			continue
+		}
+		specs = append(specs, sp)
+	}
+	return specs
+}
+
+// TODO: make sure that "soft" is not used and handle case when "atomic" is imported under a different name
 func addSoftImport(fset *token.FileSet, f *ast.File) {
 	importSpecs := []ast.Spec{
 		&ast.ImportSpec{
@@ -59,19 +72,37 @@ func addSoftImport(fset *token.FileSet, f *ast.File) {
 		},
 	}
 
+	alreadyImported := make(map[string]bool)
+
 	for _, d := range f.Decls {
-		switch d := d.(type) {
-		case *ast.GenDecl:
-			if d.Tok == token.IMPORT {
-				d.Specs = append(d.Specs, importSpecs...)
-				return
+		if d, ok := d.(*ast.GenDecl); ok && d.Tok == token.IMPORT {
+			for _, sp := range d.Specs {
+				if sp, ok := sp.(*ast.ImportSpec); ok {
+					// we need to replace github import because "soft" and "golang-soft-mocks" are treated as different packages
+					if sp.Path.Value == `"github.com/YuriyNasretdinov/golang-soft-mocks"` {
+						sp.Path.Value = `"soft"`
+					}
+					alreadyImported[sp.Path.Value] = true
+				}
 			}
 		}
 	}
 
+	for _, d := range f.Decls {
+		if d, ok := d.(*ast.GenDecl); ok && d.Tok == token.IMPORT {
+			d.Specs = appendImports(d.Specs, importSpecs, alreadyImported)
+			return
+		}
+	}
+
+	specs := appendImports(nil, importSpecs, alreadyImported)
+	if len(specs) == 0 {
+		return
+	}
+
 	f.Decls = append(f.Decls, &ast.GenDecl{
 		Tok:   token.IMPORT,
-		Specs: importSpecs,
+		Specs: specs,
 	})
 }
 
@@ -289,7 +320,25 @@ func transformAst(fset *token.FileSet, f *ast.File) {
 	injectInterceptors(flags)
 }
 
+func isPackage(pkg, filename string) bool {
+	return strings.HasPrefix(filename, filepath.Join(gopath, filepath.FromSlash(pkg))+string(os.PathSeparator))
+}
+
+// These packages are used by soft mocks themselves so otherwise we would get cyclic imports
+var excludedPackages = []string{
+	"sync/atomic",
+	"sync",
+	"reflect",
+	"soft",
+}
+
 func rewriteFile(filename string) ([]byte, error) {
+	for _, pkg := range excludedPackages {
+		if isPackage(pkg, filename) {
+			return ioutil.ReadFile(filename)
+		}
+	}
+
 	fset := token.NewFileSet() // positions are relative to fset
 	f, err := parser.ParseFile(fset, filename, nil, 0)
 	if err != nil {

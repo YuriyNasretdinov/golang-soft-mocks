@@ -1,31 +1,38 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
-	"soft"
+	"syscall"
+)
+
+var (
+	gopath     = os.Getenv("GOPATH")
+	goroot     = runtime.GOROOT()
+	softDir    = filepath.Join(gopath, "soft")
+	softGopath = filepath.Join(softDir, "gopath")
+	softGoroot = filepath.Join(softDir, "goroot")
 )
 
 func main() {
-	filename := filepath.Join(runtime.GOROOT(), "src", "os", "file_unix.go")
-
-	if err := rewriteFile(filename); err != nil {
-		log.Printf("Could not rewrite %s: %s", filename, err)
-		return
+	if gopath == "" {
+		log.Fatal("GOPATH must be set")
 	}
 
-	closeFunc := (*os.File).Close
-	soft.Mock(closeFunc, func(f *os.File) error {
-		fmt.Printf("File is going to be closed: %s\n", f.Name())
-		res, _ := soft.CallOriginal(closeFunc, f)[0].(error)
-		return res
-	})
+	if goroot == "" {
+		log.Fatal("GOROOT must be set")
+	}
 
-	fp, _ := os.Open("/dev/null")
-	err := fp.Close()
+	syncDir(gopath, softGopath)
+	syncDir(goroot, softGoroot)
 
-	fmt.Println("Hello, world: %v!", err)
+	// go root does not allow external imports, so we have to pretend that "soft" is actually golang package
+	syncDir(filepath.Join(gopath, "github.com", "YuriyNasretdinov", "golang-soft-mocks"), filepath.Join(softGoroot, "soft"))
+
+	os.Setenv("GOPATH", softGopath)
+	os.Setenv("GOROOT", softGoroot)
+
+	syscall.Exec(os.Args[1], os.Args[2:], os.Environ())
 }
