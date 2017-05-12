@@ -38,7 +38,7 @@ func main() {
 	log.Printf("Starting to rewrite %s", gopath)
 	os.Stderr.Write([]byte("\n"))
 
-	syncDir(filepath.Join(gopath, "src", "github.com", "YuriyNasretdinov"), filepath.Join(softGopath, "src", "github.com", "YuriyNasretdinov"))
+	syncDir(filepath.Join(gopath, "src"), filepath.Join(softGopath, "src"))
 
 	os.Setenv("GOPATH", softGopath)
 	os.Setenv("GOROOT", softGoroot)
