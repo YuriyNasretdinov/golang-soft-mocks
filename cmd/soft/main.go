@@ -30,6 +30,8 @@ func main() {
 	os.Stderr.Write([]byte("\n"))
 
 	syncDir(filepath.Join(goroot, "src"), filepath.Join(softGoroot, "src"))
+	syncDir(filepath.Join(goroot, "pkg", "tool"), filepath.Join(softGoroot, "pkg", "tool"))
+	syncDir(filepath.Join(goroot, "pkg", "include"), filepath.Join(softGoroot, "pkg", "include"))
 	// go root does not allow external imports, so we have to pretend that "soft" is actually golang package
 	syncDir(filepath.Join(gopath, "src", "github.com", "YuriyNasretdinov", "golang-soft-mocks"), filepath.Join(softGoroot, "src", "soft"))
 

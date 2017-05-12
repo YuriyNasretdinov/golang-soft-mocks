@@ -7,8 +7,7 @@ It is not fully working at the moment, but when it is done, it would work the fo
 ```
 $ go get github.com/YuriyNasretdinov/golang-soft-mocks
 $ cd $GOPATH/src/github.com/YuriyNasretdinov/golang-soft-mocks
-$ go install ./cmd/soft
-$ soft go run cmd/example/main.go # rewrites everything in GOPATH and GOROOT to a separate directory
+$ ./run-example.sh # rewrites everything in GOPATH and GOROOT to a separate directory
 File is going to be closed: /dev/null
 Hello, world: %v! <nil>
 ```

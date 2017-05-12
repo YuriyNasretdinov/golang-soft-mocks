@@ -20,42 +20,6 @@ var printerCfg = &printer.Config{
 	Mode:     printer.SourcePos,
 }
 
-// TODO: make better code for situation when there is not enough disk space
-func createBackupFile(filename string) error {
-	contents, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-
-	fp, err := os.OpenFile(filename+".bak", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0666)
-
-	if err != nil {
-		if os.IsExist(err) {
-			return nil
-		}
-
-		return err
-	}
-
-	defer fp.Close()
-
-	if _, err := fp.Write(contents); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func appendImports(specs, newSpecs []ast.Spec, alreadyImported map[string]bool) []ast.Spec {
-	for _, sp := range newSpecs {
-		if alreadyImported[sp.(*ast.ImportSpec).Path.Value] {
-			continue
-		}
-		specs = append(specs, sp)
-	}
-	return specs
-}
-
 // TODO: make sure that "soft" is not used and handle case when "atomic" is imported under a different name
 func addSoftImport(fset *token.FileSet, f *ast.File) {
 	importSpecs := []ast.Spec{
@@ -89,22 +53,30 @@ func addSoftImport(fset *token.FileSet, f *ast.File) {
 		}
 	}
 
-	for _, d := range f.Decls {
-		if d, ok := d.(*ast.GenDecl); ok && d.Tok == token.IMPORT {
-			d.Specs = appendImports(d.Specs, importSpecs, alreadyImported)
-			return
+	var specs []ast.Spec
+
+	for _, sp := range importSpecs {
+		if alreadyImported[sp.(*ast.ImportSpec).Path.Value] {
+			continue
 		}
+		specs = append(specs, sp)
 	}
 
-	specs := appendImports(nil, importSpecs, alreadyImported)
 	if len(specs) == 0 {
 		return
 	}
 
-	f.Decls = append(f.Decls, &ast.GenDecl{
-		Tok:   token.IMPORT,
-		Specs: specs,
-	})
+	decls := make([]ast.Decl, 0, len(f.Decls)+len(specs))
+	for _, sp := range specs {
+		decls = append(decls, &ast.GenDecl{
+			Tok:   token.IMPORT,
+			Specs: []ast.Spec{sp},
+		})
+	}
+
+	decls = append(decls, f.Decls...)
+
+	f.Decls = decls
 }
 
 func funcDeclFlagName(fset *token.FileSet, d *ast.FuncDecl) string {
@@ -160,24 +132,28 @@ func funcDeclExpr(f *ast.FuncDecl) ast.Expr {
 
 var ErrNoNames = errors.New("No names in receiver")
 
-func argNamesFromFuncDecl(f *ast.FuncDecl) ([]ast.Expr, error) {
+func argNamesFromFuncDecl(f *ast.FuncDecl) ([]ast.Expr, bool, error) {
 	var res []ast.Expr
+	var haveEllipsis bool
 
 	if f.Recv != nil {
 		names := f.Recv.List[0].Names
 		if len(names) == 0 {
-			return nil, ErrNoNames
+			return nil, false, ErrNoNames
 		}
 		res = append(res, names[0])
 	}
 
 	for _, t := range f.Type.Params.List {
 		for _, n := range t.Names {
+			if _, ok := t.Type.(*ast.Ellipsis); ok {
+				haveEllipsis = true
+			}
 			res = append(res, n)
 		}
 	}
 
-	return res, nil
+	return res, haveEllipsis, nil
 }
 
 func funcDeclType(f *ast.FuncDecl) ast.Expr {
@@ -241,12 +217,12 @@ func getInterceptorsExpression(decl *ast.FuncDecl) ast.Expr {
 		return nil
 	}
 
-	args, err := argNamesFromFuncDecl(decl)
+	args, haveEllipsis, err := argNamesFromFuncDecl(decl)
 	if err != nil {
 		return nil
 	}
 
-	return &ast.CallExpr{
+	expr := &ast.CallExpr{
 		Fun: &ast.TypeAssertExpr{
 			X: &ast.CallExpr{
 				Fun: &ast.SelectorExpr{
@@ -259,6 +235,12 @@ func getInterceptorsExpression(decl *ast.FuncDecl) ast.Expr {
 		},
 		Args: args,
 	}
+
+	if haveEllipsis {
+		expr.Ellipsis = 1
+	}
+
+	return expr
 }
 
 func injectInterceptors(flags funcFlags) {
@@ -302,8 +284,6 @@ func injectInterceptors(flags funcFlags) {
 }
 
 func transformAst(fset *token.FileSet, f *ast.File) {
-	addSoftImport(fset, f)
-
 	flags := make(funcFlags)
 	var initFunc *ast.FuncDecl
 
@@ -317,6 +297,12 @@ func transformAst(fset *token.FileSet, f *ast.File) {
 			}
 		}
 	}
+
+	if len(flags) == 0 {
+		return
+	}
+
+	addSoftImport(fset, f)
 
 	if initFunc == nil {
 		initFunc = &ast.FuncDecl{
@@ -347,6 +333,8 @@ var excludedPackages = []string{
 	"unsafe",
 	"strconv",
 	"internal",
+	"errors",
+	"unicode/utf8",
 }
 
 func rewriteFile(filename string) (contents []byte, err error) {
