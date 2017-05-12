@@ -1,8 +1,8 @@
 # Soft Mocks for Go!
 
-This is Soft Mocks ( https://github.com/badoo/soft-mocks ) for Golang.
+This is Soft Mocks analogue ( https://github.com/badoo/soft-mocks ) for Golang.
+This is an example of how it works:
 
-It is not fully working at the moment, but when it is done, it would work the following way:
 
 ```
 $ go get github.com/YuriyNasretdinov/golang-soft-mocks
