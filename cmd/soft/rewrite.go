@@ -322,6 +322,11 @@ func isPackage(pkg, filename string) bool {
 	return strings.HasPrefix(filename, filepath.Join(goroot, "src", filepath.FromSlash(pkg))+string(os.PathSeparator))
 }
 
+// checks only exact package, not subpackages (because examples and the soft util itself live there)
+func isSoftPackage(filename string) bool {
+	return filepath.Dir(filename) == filepath.Join(gopath, "src", "github.com", "YuriyNasretdinov", "golang-soft-mocks")
+}
+
 // These packages are used by soft mocks themselves so otherwise we would get cyclic imports
 var excludedPackages = []string{
 	"sync/atomic",
@@ -338,7 +343,7 @@ var excludedPackages = []string{
 }
 
 func rewriteFile(filename string) (contents []byte, err error) {
-	if !strings.HasSuffix(filename, ".go") {
+	if !strings.HasSuffix(filename, ".go") || isSoftPackage(filename) {
 		return ioutil.ReadFile(filename)
 	}
 
