@@ -43,7 +43,6 @@ There are several functions in "soft" package:
 
 ## soft.Mock(src, dst func)
 Replace implementation of `src` to `dst`. You can specify both functions and methods.
-The following test passes when run using soft.Mock:
 
 ## soft.CallOriginal(f func, args ...interface{}) []interface{}
 Calls the original function with specified arguments.
