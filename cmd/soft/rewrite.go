@@ -145,6 +145,10 @@ func argNamesFromFuncDecl(f *ast.FuncDecl) ([]ast.Expr, bool, error) {
 	}
 
 	for _, t := range f.Type.Params.List {
+		if len(t.Names) == 0 {
+			return nil, false, ErrNoNames
+		}
+
 		for _, n := range t.Names {
 			if _, ok := t.Type.(*ast.Ellipsis); ok {
 				haveEllipsis = true
@@ -248,6 +252,7 @@ func injectInterceptors(flags funcFlags) {
 		var injectBody []ast.Stmt
 		interceptorsExpr := getInterceptorsExpression(decl)
 		if interceptorsExpr == nil {
+			delete(flags, decl)
 			continue
 		}
 
@@ -298,6 +303,8 @@ func transformAst(fset *token.FileSet, f *ast.File) {
 		}
 	}
 
+	injectInterceptors(flags)
+
 	if len(flags) == 0 {
 		return
 	}
@@ -315,7 +322,6 @@ func transformAst(fset *token.FileSet, f *ast.File) {
 	}
 
 	addInit(flags, initFunc, fset, f)
-	injectInterceptors(flags)
 }
 
 func isPackage(pkg, filename string) bool {
