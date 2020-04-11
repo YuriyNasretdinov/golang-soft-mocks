@@ -4,6 +4,7 @@ This is Soft Mocks analogue ( https://github.com/badoo/soft-mocks ) for Golang. 
 
 ```
 $ go get github.com/YuriyNasretdinov/golang-soft-mocks
+$ export GOPATH=$(go env GOPATH)
 $ cd $GOPATH/src/github.com/YuriyNasretdinov/golang-soft-mocks
 $ cat run-example.sh
 #!/bin/sh -e
